@@ -29,5 +29,8 @@
     <ClInclude Include="icmp.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="icmpMessage.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
