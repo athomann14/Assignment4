@@ -21,5 +21,6 @@ class ICMP {
 			string routerIP;
 			string routerDns;
 			bool tracertComplete;
-
+			clock_t timer;
+			int totalTime;
 };

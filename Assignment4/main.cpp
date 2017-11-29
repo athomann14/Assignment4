@@ -25,7 +25,7 @@ int main(int argc, char* argv[])
 	
 	struct in_addr addr;
 	addr.s_addr = *(u_long *)remote->h_addr_list[0];
-	printf("\tIP Address: %s\n", inet_ntoa(addr));
+	//printf("\tIP Address: %s\n", inet_ntoa(addr));
 
 
 
