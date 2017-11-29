@@ -7,7 +7,7 @@ class ICMP {
 	public:
 		void createSock();
 		void createRequest();
-		void recieveReply();
+		bool recieveReply();
 		u_short ip_checksum(u_short * buffer, int size);
 		void constructSendAddr(char * dest);
 
@@ -17,5 +17,9 @@ class ICMP {
 			class ICMPHeader *icmp;
 			char * send_buf;
 			struct sockaddr_in send_addr;
+			int send_addrSize;
+			string routerIP;
+			string routerDns;
+			bool tracertComplete;
 
 };
