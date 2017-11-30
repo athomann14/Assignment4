@@ -1,7 +1,7 @@
 #include "icmp.h"
 
 
-
+//Function creates RAW socket with IP protocol ICMP
 void ICMP::createSock(void)
 {
 	/*Code provided by professor in TraceRT assignment document*/
@@ -15,6 +15,13 @@ void ICMP::createSock(void)
 	}
 	
 }
+
+/*
+Function performs Tracert operation by transmitting ICMP packet with a TTL value of 1, 
+then increasing the TTL value and repeating transmission every time an ICMP reply is type 11 code 0.
+Type 11 and code 0 indicates the TTL value has expired. 
+This process continues until either a Type 0 code 0 or a type 3 code 3 occurs, indicating the Tracert has arrived at the destination.
+*/
 
 void ICMP::createRequest(void)
 {
@@ -55,80 +62,72 @@ void ICMP::createRequest(void)
 			 exit(-1);
 		 }
 
-		
-		 
-
 		 send_addrSize = sizeof(struct sockaddr_in);
 		 int sentbytes = sendto(sock, send_buf, packet_size, 0, (struct sockaddr*) &send_addr, send_addrSize);
 		 timer = clock();
 		 //printf("packet sent!\n");
 
-		 //reply was recieved so need to increment TTL value by 1
-		 //delete[] send_buf;
 		 int probeNum = 1;
 		 while (probeNum < 4) {
 			 if (recieveReply()) {
-				 
+				 //reply recieved, so print and add timer to total time
 				 printf("%d  %s (%s)\t%d ms\t(%d)\n", ttl, routerDns.c_str(), routerIP.c_str(), timer,probeNum);
 				 totalTime += timer;
 				 break;
 			 }
 			 else{
+				 //probe failed so send another
 				 probeNum++;
 				 int sentbytes = sendto(sock, send_buf, packet_size, 0, (struct sockaddr*) &send_addr, send_addrSize);
 			 }
 		 }
-
+		 //all 3 probes timed out
 		 if (probeNum == 4) {
-			 printf("%d\t<ICMP TIMEOUT>\n", ttl);
+			 printf("%d  <ICMP TIMEOUT>\n", ttl);
 		 }
-		 
-		 
-		 
+		 //reply was recieved so need to increment TTL value by 1
 		 ttl++;
 	 }
 	 if (ttl == 30 && !tracertComplete) {
 		 printf("MAXIMUM NUMBER OF HOPS EXCEEDED");
 	 }
-	 printf("Total Execution time: %d ms\n", totalTime);
-	 printf("DONE!\n");
+	 printf("Total Execution time: %d ms\n\n", totalTime);
+	 //printf("DONE!\n");
 	 delete[] send_buf;
 
 }
 
-
+/*
+	This process sets the ICMP objects sockaddr_in parameters such as IP address and Port number
+*/
 void ICMP::constructSendAddr(char * dest)
 {
 	send_addr.sin_family = AF_INET;
 	send_addr.sin_addr.S_un.S_addr = inet_addr(dest);
+	u_short port = 27015;
+	send_addr.sin_port = htons(port);
 	//printf("done\n");
 }
 
+/*
+Function recieves and parses the ICMP replies
+Function returns True if packet recieved's ID matches the current process ID
+*/
 bool ICMP::recieveReply(void)
 {
 
 	char rec_buf[MAX_REPLY_SIZE];/* this buffer starts with an IP header */
-	int additionalSize = 0;
-
-
-	// receive from the socket into buffer rec_buf
-	/*
-	char replyType = router_icmp_hdr->type;
-	
-	int replycode = ntohs(router_icmp_hdr->code);
-	*/
-
 	//initializing ICMP variables
 	bool replyrecieved = false;
 	routerIP = "";
 	routerDns = "";
 
-	//int send_addrSize = sizeof(struct sockaddr_in);
-
 	//timeout parameters
 	struct timeval tp;
+	//CHANGE THIS VALUE IN ORDER TO CHANGE TIMEOUT INTERVAL
 	tp.tv_sec = 0;
-	tp.tv_usec = 50000;
+	tp.tv_usec = 100000;
+	//tp.tv_usec = 0;
 	int recvbytes = 0;
 
 	fd_set fd;
@@ -139,15 +138,12 @@ bool ICMP::recieveReply(void)
 	int recv_addrSize = sizeof(struct sockaddr_in);
 
 	if (select(0, &fd, NULL, NULL, &tp)>0) {
-		//printf("hello!!!\n");
-		//recvbytes = recvfrom(sock,rec_buf, MAX_REPLY_SIZE, 0, (sockaddr *)&send_addr, &send_addrSize);
 		recvbytes = recvfrom(sock, rec_buf, MAX_REPLY_SIZE,0, (sockaddr *)&recv_addr, &recv_addrSize);
 		timer = clock() - timer;
 	}
 
 
 	if (recvbytes == 0) {
-		//printf("Nothing recieved!!!\n");
 		return replyrecieved;
 	}
 	//reply recieved
@@ -175,24 +171,11 @@ bool ICMP::recieveReply(void)
 			if ((orig_icmp_hdr->id)==(u_short)GetCurrentProcessId()) {
 
 				//perform DNS lookup of router source ip
-				struct hostent *source;
+				//struct hostent *source;
 				struct in_addr destAddr;
 				destAddr.S_un.S_addr = (router_ip_hdr->source_ip);
 				routerIP = inet_ntoa(destAddr);
-
-				source = gethostbyaddr((char *)&destAddr, 4, AF_INET);
-
-				//DNS lookup failed
-				if (source == NULL) {
-					routerDns = "<no DNS entry>";
-
-				}
-				else {
-					struct in_addr addr;
-					addr.s_addr = *(u_long *)source->h_addr_list[0];
-					//printf("\tIP Address: %s\n", dest->h_name);
-					routerDns = source->h_name;
-				}
+				DNSlookup(destAddr);
 
 			}
 			else {
@@ -200,40 +183,22 @@ bool ICMP::recieveReply(void)
 			}			
 		}
 		//Type 0
-		else if (replyType == 0) {
-
+		else if (replyType == 0 && replyCode == 0) {
 			//perform DNS lookup of router source ip
-			struct hostent *destination;
-			string ipAddr = "";
-			ipAddr = (router_ip_hdr->source_ip);
-
-
 			struct in_addr destAddr;
 			destAddr.S_un.S_addr = (router_ip_hdr->source_ip);
 			routerIP = inet_ntoa(destAddr);
-
-			destination = gethostbyaddr((char *)&destAddr, 4, AF_INET);
-
-
-			if (destination == NULL) {
-				routerDns = "<no DNS entry>";
-
-			}
-			else {
-
-				struct in_addr addr;
-				addr.s_addr = *(u_long *)destination->h_addr_list[0];
-				//printf("\tIP Address: %s\n", dest->h_name);
-				routerDns = destination->h_name;
-
-			}
-
+			DNSlookup(destAddr);
 			//printf("Type 0!!!\n");
 			tracertComplete = true;
 		}
-		//NEED TO FINISH TYPE 3!!!!!!!!!!!!!!!!!!!!!!
-		else if (replyType == 3) {
-			printf("Type 3!!!\n");
+		else if (replyType == 3 && replyCode == 3) {
+			struct in_addr destAddr;
+			destAddr.S_un.S_addr = (router_ip_hdr->source_ip);
+			routerIP = inet_ntoa(destAddr);
+			DNSlookup(destAddr);
+			tracertComplete = true;
+			//printf("Type 3!!!\n");
 
 		}
 
@@ -273,4 +238,26 @@ u_short ICMP::ip_checksum(u_short * buffer, int size)
 
 	/* return the bitwise complement of the resulting mishmash */
 	return (u_short)(~cksum);
+}
+
+
+/*
+Function performs DNS lookup and places the resolved name into the RouterDNS string, else it places no DNS entry
+*/
+void ICMP::DNSlookup(struct in_addr destAddr) {
+	struct hostent *source;
+
+	source = gethostbyaddr((char *)&destAddr, 4, AF_INET);
+
+	//DNS lookup failed
+	if (source == NULL) {
+		routerDns = "<no DNS entry>";
+
+	}
+	else {
+		struct in_addr addr;
+		addr.s_addr = *(u_long *)source->h_addr_list[0];
+		//printf("\tIP Address: %s\n", dest->h_name);
+		routerDns = source->h_name;
+	}
 }

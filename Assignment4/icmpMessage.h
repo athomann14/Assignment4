@@ -47,12 +47,6 @@ public:
 	u_short seq; /* application-specific sequence */
 };
 
-class requestMessage {
-	public:
-	ICMPHeader icmphead;
-	int time;
-	char data[20];
-};
 #ifdef _MSC_VER
 /* now restore the previous packing state */
 #pragma pack (pop, traceroute)
